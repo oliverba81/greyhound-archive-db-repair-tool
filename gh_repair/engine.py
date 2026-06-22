@@ -325,12 +325,8 @@ def rebuild_archive(
     # --- Logs zusammenfuehren --------------------------------------------
     _merge_logs([a for a, _ in source_data], target, log)
 
-    # --- Abschlusspruefung -----------------------------------------------
-    report.integrity_ok, report.integrity_msg = core.integrity_check(target.db_path)
-    log(
-        f"Integritaetspruefung Zielarchiv: "
-        f"{'OK' if report.integrity_ok else 'FEHLER: ' + report.integrity_msg}"
-    )
+    # --- Abschlusspruefung des neuen Archivs -----------------------------
+    _verify_target(target, report, log)
     if progress:
         progress(1.0)
     return report
@@ -350,6 +346,107 @@ def _rebuild_fts(
             (fts.docid, fts.fromto, fts.subject, fts.body, fts.remarks, fts.attributes),
         )
     conn.commit()
+
+
+def _verify_target(target: Archive, report: Report, log: Logger) -> None:
+    """Prueft das fertige Zielarchiv umfassend auf Fehler.
+
+    Strukturelle Integritaet, FTS-Index (funktionsfaehig + vollstaendig),
+    referenzielle Integritaet der Child-Tabellen, Statistik und der
+    Datei<->DB-Abgleich im Ziel.
+    """
+    log("Prüfe das neue Archiv auf Fehler ...")
+    problems: list[str] = []
+
+    ok, msg = core.integrity_check(target.db_path)
+    report.integrity_ok, report.integrity_msg = ok, msg
+    if not ok:
+        problems.append(f"Strukturelle Integrität: {msg}")
+
+    try:
+        conn = core.open_readonly(target.db_path)
+    except sqlite3.Error as exc:
+        problems.append(f"Zieldatenbank nicht lesbar: {exc}")
+        report.verify_problems = problems
+        report.verify_ok = False
+        log(f"  ! Prüfung fehlgeschlagen: {exc}")
+        return
+
+    try:
+        item_ids = {r[0] for r in conn.execute("SELECT i_id FROM items")}
+        n_items = len(item_ids)
+
+        # Referenzielle Integritaet der Child-Tabellen
+        for t in schema.CHILD_TABLES:
+            try:
+                bad = conn.execute(
+                    f"SELECT count(*) FROM {t} "
+                    "WHERE i_item_r NOT IN (SELECT i_id FROM items)"
+                ).fetchone()[0]
+                if bad:
+                    problems.append(
+                        f"{bad} verwaiste Zeile(n) in '{t}' "
+                        "(i_item_r ohne passendes Item)")
+            except sqlite3.Error as exc:
+                problems.append(f"'{t}' nicht prüfbar: {exc}")
+
+        # FTS-Index: funktionsfaehig?
+        try:
+            conn.execute(
+                "SELECT docid FROM fts WHERE fts MATCH 'a' LIMIT 1").fetchall()
+        except sqlite3.Error as exc:
+            problems.append(f"FTS-Index nicht abfragbar: {exc}")
+        # FTS-Index: vollstaendig? (eine Indexzeile je Item)
+        try:
+            n_fts = conn.execute("SELECT count(*) FROM fts_docsize").fetchone()[0]
+            if n_fts != n_items:
+                problems.append(
+                    f"FTS-Index unvollständig: {n_fts} indiziert, "
+                    f"{n_items} Items")
+        except sqlite3.Error as exc:
+            problems.append(f"FTS-Vollständigkeit nicht prüfbar: {exc}")
+
+        # Statistik korrekt?
+        try:
+            row = conn.execute("SELECT i_count, i_size FROM statistics").fetchone()
+            if not row:
+                problems.append("Statistik-Zeile fehlt")
+            else:
+                if row[0] != n_items:
+                    problems.append(
+                        f"Statistik i_count={row[0]} != {n_items} Items")
+                actual = sum(p.stat().st_size for p in target.root.rglob("*.eml"))
+                if row[1] != actual:
+                    problems.append(
+                        f"Statistik i_size={row[1]} != tatsächlich {actual} Bytes")
+        except sqlite3.Error as exc:
+            problems.append(f"Statistik nicht prüfbar: {exc}")
+
+        # Datei<->DB im Ziel
+        disk_ids: set[int] = set()
+        for p in target.root.rglob("*.eml"):
+            try:
+                disk_ids.add(int(p.stem))
+            except ValueError:
+                pass
+        orphan = disk_ids - item_ids
+        if orphan:
+            problems.append(f"{len(orphan)} .eml im Ziel ohne DB-Eintrag")
+        missing = item_ids - disk_ids
+        if missing:
+            log(f"  i {len(missing)} Item(s) ohne .eml im Ziel "
+                "(fehlte bereits in der Quelle – kein Aufbaufehler)")
+    finally:
+        conn.close()
+
+    report.verify_problems = problems
+    report.verify_ok = not problems
+    if problems:
+        log(f"  ! {len(problems)} Problem(e) im neuen Archiv gefunden:")
+        for p in problems:
+            log(f"      - {p}")
+    else:
+        log("  OK - keine Fehler im neuen Archiv gefunden.")
 
 
 def _merge_logs(sources: list[Archive], target: Archive, log: Logger) -> None:

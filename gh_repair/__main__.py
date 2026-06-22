@@ -40,8 +40,12 @@ def _cli(argv: list[str]) -> int:
     print(f"Fertig. Items: {report.items_total}, "
           f"umnummeriert: {report.items_renumbered}, "
           f".eml: {report.eml_copied}, "
-          f"Integritaet: {'OK' if report.integrity_ok else 'FEHLER'}")
-    return 0 if report.integrity_ok else 1
+          f"Backups: {len(report.backups)}, "
+          f"Prüfung: {'OK' if report.verify_ok else 'PROBLEME'}")
+    if not report.verify_ok:
+        for p in report.verify_problems:
+            print(f"  - {p}")
+    return 0 if report.verify_ok else 1
 
 
 def _launch_gui() -> None:
@@ -75,6 +79,11 @@ def _launch_gui() -> None:
 
 def main() -> int:
     if len(sys.argv) > 1:
+        # Windows-Konsole (cp1252) vertraegt sonst keine Sonderzeichen
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001
+            pass
         return _cli(sys.argv[1:])
     _launch_gui()
     return 0
