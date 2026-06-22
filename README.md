@@ -22,11 +22,19 @@ bzw. repariert ein defektes Archiv.
 
 ## Start
 
-Voraussetzung: **Python 3.10+** (Windows: „py“-Launcher, in Python enthalten;
-keine zusätzlichen Pakete nötig – nur die Standardbibliothek).
+Voraussetzung: **Python 3.10+** (Windows: „py“-Launcher, in Python enthalten).
 
-- **Doppelklick** auf `Tool starten.bat`, **oder**
+Einmalig das GUI-Theme installieren (modernes Aussehen, Dark/Light):
+```
+py -m pip install -r requirements.txt
+```
+Danach:
+- **Doppelklick** auf `Tool starten.bat` (Konsolenfenster schließt sich sofort), **oder**
 - im Terminal: `py -m gh_repair`
+
+> Nur die GUI benötigt `customtkinter`. Die Reparatur-/Merge-Logik und der
+> Headless-Modus (`py -m gh_repair repair|merge …`) laufen rein mit der
+> Standardbibliothek.
 
 ## Funktionen
 
@@ -105,6 +113,6 @@ wie das Website-Scraper-Projekt), angepasst an die Paketstruktur:
 | `gh_repair/core.py` | Robuster DB-Lesezugriff, `.eml`-Textextraktion, FTS-Texte |
 | `gh_repair/engine.py` | Gemeinsame Rebuild-Engine (Reparatur = 1 Quelle, Merge = n Quellen) |
 | `gh_repair/updater.py` | Auto-Update & Changelog über GitHub Releases |
-| `gh_repair/gui.py` | tkinter-Oberfläche (Tabs: Reparieren, Zusammenführen, Changelog) |
+| `gh_repair/gui.py` | customtkinter-Oberfläche (Tabs: Reparieren, Zusammenführen, Changelog) |
 | `gh_repair/__main__.py` | Einstiegspunkt (GUI bzw. CLI) |
 | `.github/workflows/version-bump.yml` | Auto-Versionierung + Release-Build |

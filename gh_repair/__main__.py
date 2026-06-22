@@ -36,12 +36,35 @@ def _cli(argv: list[str]) -> int:
     return 0 if report.integrity_ok else 1
 
 
+def _launch_gui() -> None:
+    try:
+        from .gui import main as gui_main
+    except ImportError as exc:
+        # customtkinter fehlt -> verstaendliche Meldung (auch unter pythonw)
+        msg = (
+            "Das GUI-Paket 'customtkinter' ist nicht installiert.\n\n"
+            "Bitte einmalig installieren:\n"
+            "    py -m pip install -r requirements.txt\n\n"
+            f"Technische Details: {exc}"
+        )
+        try:
+            import tkinter as tk
+            from tkinter import messagebox
+
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showerror("Fehlende Abhängigkeit", msg)
+            root.destroy()
+        except Exception:  # noqa: BLE001
+            print(msg)
+        return
+    gui_main()
+
+
 def main() -> int:
     if len(sys.argv) > 1:
         return _cli(sys.argv[1:])
-    from .gui import main as gui_main
-
-    gui_main()
+    _launch_gui()
     return 0
 
 
