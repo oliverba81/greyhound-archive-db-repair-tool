@@ -314,7 +314,7 @@ class App(ctk.CTk):
             self._log("")
             self._log_report(report)
             self._log(f"=== {title} abgeschlossen ===")
-            self._log_queue.put(("__DONE_OK__", None))
+            self._log_queue.put(("__DONE_OK__", report.verify_ok))
         except Exception as exc:  # noqa: BLE001
             self._log("")
             self._log(f"FEHLER: {exc}")
@@ -340,9 +340,13 @@ class App(ctk.CTk):
                 self._log(f"      … und {len(report.eml_missing) - 20} weitere")
         if report.eml_orphaned:
             self._log(f"  i Rekonstruierte verwaiste .eml: {len(report.eml_orphaned)}")
-        self._log("  Integrität Ziel:     "
-                  + ("OK" if report.integrity_ok
-                     else "FEHLER – " + report.integrity_msg))
+        if report.verify_ok:
+            self._log("  Prüfung neues Archiv: ✓ keine Fehler")
+        else:
+            self._log(f"  Prüfung neues Archiv: ✗ {len(report.verify_problems)} "
+                      "Problem(e):")
+            for p in report.verify_problems:
+                self._log(f"      - {p}")
 
     # --------------------------------------------------------------- Update
     def _check_update(self, manual: bool = False) -> None:
@@ -447,7 +451,15 @@ class App(ctk.CTk):
             self.progress.set(float(payload))
         elif kind == "__DONE_OK__":
             self._set_busy(False)
-            messagebox.showinfo("Fertig", "Vorgang erfolgreich abgeschlossen.")
+            if payload:
+                messagebox.showinfo(
+                    "Fertig", "Vorgang erfolgreich abgeschlossen.\n"
+                    "Das neue Archiv wurde geprüft – keine Fehler gefunden.")
+            else:
+                messagebox.showwarning(
+                    "Fertig – mit Hinweisen",
+                    "Vorgang abgeschlossen, aber die Prüfung des neuen Archivs "
+                    "hat Probleme gefunden.\nDetails im Protokoll.")
         elif kind == "__DONE_ERR__":
             self._set_busy(False)
             messagebox.showerror("Fehler", "Der Vorgang ist fehlgeschlagen. "

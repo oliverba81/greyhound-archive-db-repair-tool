@@ -280,4 +280,6 @@ class Report:
     total_size: int = 0
     integrity_ok: bool = False
     integrity_msg: str = ""
+    verify_ok: bool = False
+    verify_problems: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
