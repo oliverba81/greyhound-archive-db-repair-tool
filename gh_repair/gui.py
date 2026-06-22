@@ -6,7 +6,6 @@ Projekt. Benoetigt das Paket ``customtkinter`` (siehe requirements.txt).
 
 from __future__ import annotations
 
-import json
 import queue
 import threading
 import tkinter as tk
@@ -16,9 +15,9 @@ from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
-from . import __version__, core, engine, updater
-
-SETTINGS_FILE = Path.home() / ".gh_archive_repair_settings.json"
+from . import __version__, engine, updater
+from .settings import load_settings as _load_settings
+from .settings import save_settings as _save_settings
 
 # Akzent-/Statusfarben (Tuple = (Light, Dark))
 COL_OK = ("#15803d", "#4ade80")
@@ -27,20 +26,6 @@ COL_MUTED = "gray55"
 COL_DANGER = ("#b91c1c", "#ef4444")
 COL_LOGBG = ("gray96", "#141420")
 COL_LOGFG = ("gray10", "#d4d4d4")
-
-
-def _load_settings() -> dict:
-    try:
-        return json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
-        return {}
-
-
-def _save_settings(data: dict) -> None:
-    try:
-        SETTINGS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    except Exception:  # noqa: BLE001
-        pass
 
 
 class App(ctk.CTk):
@@ -57,6 +42,8 @@ class App(ctk.CTk):
         self._log_queue: queue.Queue = queue.Queue()
         self._busy = False
         self._merge_sources: list[str] = []
+        self._backup_var = tk.BooleanVar(
+            value=_load_settings().get("backup_originals", True))
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
@@ -206,21 +193,33 @@ class App(ctk.CTk):
         wrap = ctk.CTkFrame(self, fg_color="transparent")
         wrap.grid(row=2, column=0, sticky="nsew", padx=18, pady=(0, 14))
         wrap.columnconfigure(0, weight=1)
-        wrap.rowconfigure(2, weight=1)
+        wrap.rowconfigure(3, weight=1)
+
+        opt = ctk.CTkFrame(wrap, fg_color="transparent")
+        opt.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        ctk.CTkCheckBox(
+            opt, text="Backup der Originale vor jeder Aktion anlegen",
+            variable=self._backup_var, command=self._on_backup_toggle,
+        ).pack(side="left")
 
         self.progress = ctk.CTkProgressBar(wrap)
         self.progress.set(0)
-        self.progress.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        self.progress.grid(row=1, column=0, sticky="ew", pady=(0, 8))
 
         ctk.CTkLabel(wrap, text="Protokoll", anchor="w",
                      font=ctk.CTkFont(size=12, weight="bold")).grid(
-            row=1, column=0, sticky="w")
+            row=2, column=0, sticky="w")
         self.log_widget = ctk.CTkTextbox(
             wrap, font=ctk.CTkFont(family="Consolas", size=11),
             fg_color=COL_LOGBG, text_color=COL_LOGFG, corner_radius=6,
             state="disabled",
         )
-        self.log_widget.grid(row=2, column=0, sticky="nsew", pady=(2, 0))
+        self.log_widget.grid(row=3, column=0, sticky="nsew", pady=(2, 0))
+
+    def _on_backup_toggle(self) -> None:
+        s = _load_settings()
+        s["backup_originals"] = bool(self._backup_var.get())
+        _save_settings(s)
 
     # --------------------------------------------------------------- Actions
     def _pick_folder(self, entry: ctk.CTkEntry) -> None:
@@ -295,20 +294,23 @@ class App(ctk.CTk):
     def _run(self, sources: list[Path], target: Path, title: str) -> None:
         if self._busy:
             return
+        backup = bool(self._backup_var.get())
         self._set_busy(True)
         self._clear_log()
         self.progress.set(0)
         self._log(f"=== {title} gestartet ===")
         for s in sources:
             self._log(f"  Quelle: {s}")
-        self._log(f"  Ziel:   {target}\n")
-        threading.Thread(target=self._worker, args=(sources, target, title),
+        self._log(f"  Ziel:   {target}")
+        self._log(f"  Backup der Originale: {'ja' if backup else 'nein'}\n")
+        threading.Thread(target=self._worker, args=(sources, target, title, backup),
                          daemon=True).start()
 
-    def _worker(self, sources: list[Path], target: Path, title: str) -> None:
+    def _worker(self, sources: list[Path], target: Path, title: str,
+                backup: bool) -> None:
         try:
             report = engine.rebuild_archive(sources, target, self._log,
-                                            self._set_progress)
+                                            self._set_progress, backup=backup)
             self._log("")
             self._log_report(report)
             self._log(f"=== {title} abgeschlossen ===")
@@ -321,6 +323,10 @@ class App(ctk.CTk):
 
     def _log_report(self, report) -> None:
         self._log("Zusammenfassung:")
+        if report.backups:
+            self._log(f"  Backups angelegt:    {len(report.backups)}")
+            for b in report.backups:
+                self._log(f"      {b}")
         self._log(f"  Items gesamt:        {report.items_total}")
         self._log(f"  davon umnummeriert:  {report.items_renumbered}")
         self._log(f"  .eml kopiert:        {report.eml_copied}")

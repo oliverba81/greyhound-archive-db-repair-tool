@@ -272,6 +272,7 @@ class Report:
     items_total: int = 0
     items_renumbered: int = 0
     eml_copied: int = 0
+    backups: list[str] = field(default_factory=list)
     eml_missing: list[str] = field(default_factory=list)
     eml_orphaned: list[str] = field(default_factory=list)
     rows_recovered: dict[str, int] = field(default_factory=dict)

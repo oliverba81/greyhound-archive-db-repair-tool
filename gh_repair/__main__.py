@@ -6,6 +6,9 @@ Tool headless (nuetzlich fuer Skripte/Tests):
     python -m gh_repair                              # GUI
     python -m gh_repair repair  QUELLE ZIEL          # Reparatur
     python -m gh_repair merge   ZIEL Q1 Q2 [Q3 ...]  # Zusammenfuehren
+
+Optional: --no-backup  unterdrueckt die Sicherung der Originale
+(standardmaessig wird vorab eine Kopie jeder Quelle angelegt).
 """
 
 from __future__ import annotations
@@ -17,14 +20,19 @@ from . import engine
 
 
 def _cli(argv: list[str]) -> int:
+    backup = True
+    if "--no-backup" in argv:
+        backup = False
+        argv = [a for a in argv if a != "--no-backup"]
     cmd = argv[0]
     log = print
     if cmd == "repair" and len(argv) == 3:
-        report = engine.rebuild_archive([Path(argv[1])], Path(argv[2]), log)
+        report = engine.rebuild_archive([Path(argv[1])], Path(argv[2]), log,
+                                        backup=backup)
     elif cmd == "merge" and len(argv) >= 4:
         target = Path(argv[1])
         sources = [Path(p) for p in argv[2:]]
-        report = engine.rebuild_archive(sources, target, log)
+        report = engine.rebuild_archive(sources, target, log, backup=backup)
     else:
         print(__doc__)
         return 2
@@ -37,13 +45,17 @@ def _cli(argv: list[str]) -> int:
 
 
 def _launch_gui() -> None:
+    # Beim ersten Start fehlende Abhaengigkeiten (customtkinter) installieren.
+    from . import bootstrap
+
+    bootstrap.ensure_dependencies()
     try:
         from .gui import main as gui_main
     except ImportError as exc:
-        # customtkinter fehlt -> verstaendliche Meldung (auch unter pythonw)
+        # Sollte nach ensure_dependencies() nicht mehr vorkommen.
         msg = (
-            "Das GUI-Paket 'customtkinter' ist nicht installiert.\n\n"
-            "Bitte einmalig installieren:\n"
+            "Das GUI-Paket 'customtkinter' konnte nicht geladen werden.\n\n"
+            "Bitte manuell installieren:\n"
             "    py -m pip install -r requirements.txt\n\n"
             f"Technische Details: {exc}"
         )
