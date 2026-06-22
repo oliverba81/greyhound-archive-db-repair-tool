@@ -1,0 +1,5 @@
+# LF fuer alle Textdateien (wichtig fuer die Bash-Schritte der GitHub Action)
+* text=auto eol=lf
+
+# Windows-Batchdateien brauchen CRLF
+*.bat text eol=crlf

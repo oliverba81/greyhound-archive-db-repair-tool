@@ -1,0 +1,20 @@
+# Read-only Update-Token (nie committen!)
+_token.py
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Update-/Build-Artefakte
+_gh_repair_update.zip
+_gh_repair_updater.py
+gh_repair.zip
+
+# Editor/OS
+.vscode/
+.idea/
+*.bak
+
+# Claude Code lokale Einstellungen (maschinen-spezifisch)
+.claude/settings.local.json

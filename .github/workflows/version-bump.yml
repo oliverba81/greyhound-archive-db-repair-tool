@@ -1,0 +1,76 @@
+name: Auto Version Bump
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read current version
+        id: cur
+        run: |
+          V=$(grep '__version__ = ' gh_repair/__init__.py | grep -oP '"\K[^"]+')
+          echo "version=$V" >> $GITHUB_OUTPUT
+
+      - name: Determine bump type from PR labels
+        id: bump
+        run: |
+          LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          TYPE="patch"
+          if echo "$LABELS" | grep -q "version:major"; then TYPE="major"
+          elif echo "$LABELS" | grep -q "version:minor"; then TYPE="minor"
+          fi
+          echo "type=$TYPE" >> $GITHUB_OUTPUT
+
+      - name: Calculate new version
+        id: new
+        run: |
+          IFS='.' read -ra P <<< "${{ steps.cur.outputs.version }}"
+          MA=${P[0]}; MI=${P[1]}; PA=${P[2]}
+          case "${{ steps.bump.outputs.type }}" in
+            major) MA=$((MA+1)); MI=0; PA=0 ;;
+            minor) MI=$((MI+1)); PA=0 ;;
+            *)     PA=$((PA+1)) ;;
+          esac
+          echo "version=$MA.$MI.$PA" >> $GITHUB_OUTPUT
+
+      - name: Write new version to source
+        run: |
+          sed -i 's/__version__ = "[^"]*"/__version__ = "${{ steps.new.outputs.version }}"/' \
+            gh_repair/__init__.py
+
+      - name: Build release asset (gh_repair.zip)
+        run: |
+          rm -rf gh_repair/__pycache__
+          zip -r gh_repair.zip gh_repair -x '*/__pycache__/*'
+
+      - name: Commit, tag and push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add gh_repair/__init__.py
+          git commit -m "chore: bump version to ${{ steps.new.outputs.version }} [skip ci]"
+          git tag "v${{ steps.new.outputs.version }}"
+          git push && git push --tags
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ steps.new.outputs.version }}"
+          name:     "v${{ steps.new.outputs.version }}"
+          generate_release_notes: true
+          make_latest: true
+          files: gh_repair.zip
