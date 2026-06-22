@@ -16,8 +16,10 @@ Verlustfreiheit:
 from __future__ import annotations
 
 import email
+import shutil
 import sqlite3
 from collections import defaultdict
+from datetime import datetime
 from email import policy
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -194,13 +196,32 @@ def _insert_child(
     )
 
 
+def _backup_sources(sources: list[Path], log: Logger, report: Report) -> None:
+    """Legt vor jeder Aktion eine vollstaendige Kopie jeder Quelle an."""
+    ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    for src in sources:
+        src = Path(src)
+        dst = src.parent / f"{src.name} - Backup {ts}"
+        n = 1
+        while dst.exists():
+            dst = src.parent / f"{src.name} - Backup {ts} ({n})"
+            n += 1
+        log(f"Backup der Quelle anlegen: {dst}")
+        shutil.copytree(src, dst)
+        report.backups.append(str(dst))
+
+
 def rebuild_archive(
     sources: list[Path],
     target_root: Path,
     log: Logger,
     progress: Callable[[float], None] | None = None,
+    backup: bool = True,
 ) -> Report:
-    """Baut aus einer oder mehreren Quellen ein neues Zielarchiv auf."""
+    """Baut aus einer oder mehreren Quellen ein neues Zielarchiv auf.
+
+    backup=True legt vorab eine vollstaendige Sicherungskopie jeder Quelle an.
+    """
     report = Report()
     target = Archive(target_root)
 
@@ -208,6 +229,10 @@ def rebuild_archive(
         raise FileExistsError(
             f"Zielordner enthaelt bereits eine archive.db3: {target.db_path}"
         )
+
+    if backup:
+        _backup_sources(sources, log, report)
+
     target_root.mkdir(parents=True, exist_ok=True)
     target.logs_dir.mkdir(exist_ok=True)
 

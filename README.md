@@ -22,11 +22,21 @@ bzw. repariert ein defektes Archiv.
 
 ## Start
 
-Voraussetzung: **Python 3.10+** (Windows: „py“-Launcher, in Python enthalten;
-keine zusätzlichen Pakete nötig – nur die Standardbibliothek).
+Voraussetzung: **Python 3.10+** (Windows: „py“-Launcher, in Python enthalten).
 
-- **Doppelklick** auf `Tool starten.bat`, **oder**
+- **Doppelklick** auf `Tool starten.bat` (Konsolenfenster schließt sich sofort), **oder**
 - im Terminal: `py -m gh_repair`
+
+**Beim ersten Start** installiert das Tool fehlende Abhängigkeiten
+(`customtkinter`) automatisch über ein kleines Setup-Fenster – kein manueller
+`pip install` nötig (wie beim Website-Scraper). Alternativ vorab:
+```
+py -m pip install -r requirements.txt
+```
+
+> Nur die GUI benötigt `customtkinter`. Die Reparatur-/Merge-Logik und der
+> Headless-Modus (`py -m gh_repair repair|merge …`) laufen rein mit der
+> Standardbibliothek.
 
 ## Funktionen
 
@@ -51,6 +61,10 @@ Erzeugt ein neues Gesamtarchiv aus zwei oder mehr Quellen:
 
 ## Sicherheit / Verlustfreiheit
 
+- **Backup der Originale vor jeder Aktion:** Standardmäßig legt das Tool vor
+  Reparatur/Merge eine vollständige Sicherungskopie jeder Quelle als
+  Geschwister-Ordner an (`<Archiv> - Backup <Zeitstempel>`). Im Footer per
+  Häkchen abschaltbar.
 - **Quellen werden nie verändert** – es wird ausschließlich in ein neues
   Zielarchiv geschrieben (geöffnet wird die Quelle schreibgeschützt).
 - Der Zielordner darf keine bestehende `archive.db3` enthalten (Überschreibschutz).
@@ -103,8 +117,10 @@ wie das Website-Scraper-Projekt), angepasst an die Paketstruktur:
 |---|---|
 | `gh_repair/schema.py` | Archivstruktur, Bucket-Schema (`mod 4096`), Tabellen-Schema |
 | `gh_repair/core.py` | Robuster DB-Lesezugriff, `.eml`-Textextraktion, FTS-Texte |
-| `gh_repair/engine.py` | Gemeinsame Rebuild-Engine (Reparatur = 1 Quelle, Merge = n Quellen) |
+| `gh_repair/engine.py` | Gemeinsame Rebuild-Engine (Reparatur = 1 Quelle, Merge = n Quellen) + Backup |
+| `gh_repair/bootstrap.py` | Erststart: installiert fehlende Abhängigkeiten automatisch |
+| `gh_repair/settings.py` | Persistente Einstellungen (stdlib, vom Bootstrap genutzt) |
 | `gh_repair/updater.py` | Auto-Update & Changelog über GitHub Releases |
-| `gh_repair/gui.py` | tkinter-Oberfläche (Tabs: Reparieren, Zusammenführen, Changelog) |
+| `gh_repair/gui.py` | customtkinter-Oberfläche (Tabs: Reparieren, Zusammenführen, Changelog) |
 | `gh_repair/__main__.py` | Einstiegspunkt (GUI bzw. CLI) |
 | `.github/workflows/version-bump.yml` | Auto-Versionierung + Release-Build |
