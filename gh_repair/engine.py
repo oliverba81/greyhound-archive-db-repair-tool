@@ -260,9 +260,15 @@ def rebuild_archive(
 
     total_items = sum(len(d.items) for _a, d in source_data) or 1
     done = 0
+    # Bis 200 Items jeden Schritt loggen, darueber gedrosselt (~50 Meldungen).
+    log_every = 1 if total_items <= 200 else max(1, total_items // 50)
+
+    log(f"Schreibe {total_items} Item(s) ins Zielarchiv (Items, Protokolle, "
+        "Notizen, Benutzerfelder, .eml-Dateien) ...")
 
     try:
         for arc, data in source_data:
+            log(f"Verarbeite Quelle '{arc.root.name}' ({len(data.items)} Items) ...")
             for item in data.items:
                 old_id = item["i_id"]
                 new_id, renumbered = allocator.allocate(old_id)
@@ -278,18 +284,23 @@ def rebuild_archive(
                 # Child-Zeilen mit neuem Verweis uebernehmen
                 remarks_rows = data.children["remarks"].get(old_id, [])
                 userfields_rows = data.children["userfields"].get(old_id, [])
+                n_children = 0
                 for t in schema.CHILD_TABLES:
                     for row in data.children[t].get(old_id, []):
                         _insert_child(conn, t, child_cols[t], row, new_id)
+                        n_children += 1
 
                 # .eml kopieren
                 src_eml = data.disk.get(old_id)
                 target_eml = target.eml_path(new_id)
+                eml_note = "ohne .eml"
                 if src_eml and src_eml.is_file():
                     target_eml.parent.mkdir(parents=True, exist_ok=True)
                     target_eml.write_bytes(src_eml.read_bytes())
                     report.eml_copied += 1
                     report.total_size += target_eml.stat().st_size
+                    eml_note = (f"{schema.bucket_name(new_id)}/{new_id}.eml "
+                                f"({target_eml.stat().st_size} B)")
                 else:
                     report.eml_missing.append(f"{arc.root.name}: Item {old_id}")
                     target_eml = None
@@ -297,7 +308,11 @@ def rebuild_archive(
                 fts_inputs.append((item, target_eml, remarks_rows, userfields_rows))
 
                 done += 1
-                if progress and done % 25 == 0:
+                if done % log_every == 0 or done == total_items:
+                    subj = (item.get("c_subject", "") or "")[:48]
+                    log(f"  [{done}/{total_items}] Item {new_id}: {n_children} "
+                        f"Child-Zeile(n), {eml_note}  ·  \"{subj}\"")
+                if progress and done % 10 == 0:
                     progress(done / total_items * 0.8)
 
             report.eml_orphaned += [f"{arc.root.name}: {i}" for i in data.orphaned]

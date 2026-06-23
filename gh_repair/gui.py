@@ -32,12 +32,22 @@ class App(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
         self.title(f"GREYHOUND Archive Repair Tool   v{__version__}")
-        self.geometry("900x740")
         self.update_idletasks()
-        x = (self.winfo_screenwidth() - 900) // 2
-        y = (self.winfo_screenheight() - 740) // 2
-        self.geometry(f"900x740+{x}+{y}")
-        self.minsize(720, 600)
+        # An die verfuegbare Bildschirmhoehe anpassen (DPI-Skalierung beachten),
+        # damit das Fenster – und damit das Protokoll – nie ueber den Rand
+        # hinausragt und abgeschnitten wird.
+        try:
+            scale = ctk.ScalingTracker.get_window_scaling(self)
+        except Exception:  # noqa: BLE001
+            scale = 1.0
+        screen_w = int(self.winfo_screenwidth() / scale)
+        screen_h = int(self.winfo_screenheight() / scale)
+        w = min(960, screen_w - 40)
+        h = min(880, screen_h - 70)
+        x = max(0, (screen_w - w) // 2)
+        y = max(0, (screen_h - h) // 2)
+        self.geometry(f"{w}x{h}+{x}+{y}")
+        self.minsize(min(760, w), min(560, h))
 
         self._log_queue: queue.Queue = queue.Queue()
         self._busy = False
@@ -89,7 +99,7 @@ class App(ctk.CTk):
 
     # -------------------------------------------------------------------- Tabs
     def _build_tabs(self) -> None:
-        self.tabs = ctk.CTkTabview(self, height=300)
+        self.tabs = ctk.CTkTabview(self, height=330)
         self.tabs.grid(row=1, column=0, sticky="ew", padx=18, pady=(14, 6))
         self._build_repair_tab(self.tabs.add("  🔧  Reparieren  "))
         self._build_merge_tab(self.tabs.add("  🔀  Zusammenführen  "))
@@ -118,7 +128,6 @@ class App(ctk.CTk):
 
     def _build_merge_tab(self, tab) -> None:
         tab.columnconfigure(0, weight=1)
-        tab.rowconfigure(1, weight=1)
         ctk.CTkLabel(
             tab, justify="left", text_color=COL_MUTED,
             font=ctk.CTkFont(size=12), anchor="w",
@@ -128,9 +137,9 @@ class App(ctk.CTk):
         ).grid(row=0, column=0, sticky="w", padx=6, pady=(8, 8))
 
         self._src_frame = ctk.CTkScrollableFrame(
-            tab, label_text="Quell-Archive", height=150
+            tab, label_text="Quell-Archive", height=120
         )
-        self._src_frame.grid(row=1, column=0, sticky="nsew", padx=6, pady=(0, 8))
+        self._src_frame.grid(row=1, column=0, sticky="ew", padx=6, pady=(0, 8))
         self._src_frame.columnconfigure(0, weight=1)
         self._render_sources()
 
@@ -193,7 +202,9 @@ class App(ctk.CTk):
         wrap = ctk.CTkFrame(self, fg_color="transparent")
         wrap.grid(row=2, column=0, sticky="nsew", padx=18, pady=(0, 14))
         wrap.columnconfigure(0, weight=1)
-        wrap.rowconfigure(3, weight=1)
+        # Das Protokoll bekommt den gesamten verbleibenden Platz, mindestens 240px,
+        # damit es nie zu einem Streifen zusammengedrueckt wird.
+        wrap.rowconfigure(3, weight=1, minsize=240)
 
         opt = ctk.CTkFrame(wrap, fg_color="transparent")
         opt.grid(row=0, column=0, sticky="ew", pady=(0, 8))
@@ -206,15 +217,28 @@ class App(ctk.CTk):
         self.progress.set(0)
         self.progress.grid(row=1, column=0, sticky="ew", pady=(0, 8))
 
-        ctk.CTkLabel(wrap, text="Protokoll", anchor="w",
-                     font=ctk.CTkFont(size=12, weight="bold")).grid(
-            row=2, column=0, sticky="w")
+        head = ctk.CTkFrame(wrap, fg_color="transparent")
+        head.grid(row=2, column=0, sticky="ew")
+        head.columnconfigure(0, weight=1)
+        ctk.CTkLabel(head, text="Protokoll", anchor="w",
+                     font=ctk.CTkFont(size=13, weight="bold")).grid(
+            row=0, column=0, sticky="w")
+        ctk.CTkButton(head, text="📋 Kopieren", width=96, height=26,
+                      fg_color="transparent", border_width=1,
+                      text_color=("gray10", "gray90"),
+                      command=self._copy_log).grid(row=0, column=1, sticky="e")
+
         self.log_widget = ctk.CTkTextbox(
-            wrap, font=ctk.CTkFont(family="Consolas", size=11),
+            wrap, font=ctk.CTkFont(family="Consolas", size=12),
             fg_color=COL_LOGBG, text_color=COL_LOGFG, corner_radius=6,
-            state="disabled",
+            wrap="none", state="disabled",
         )
-        self.log_widget.grid(row=3, column=0, sticky="nsew", pady=(2, 0))
+        self.log_widget.grid(row=3, column=0, sticky="nsew", pady=(4, 0))
+
+    def _copy_log(self) -> None:
+        text = self.log_widget.get("1.0", "end")
+        self.clipboard_clear()
+        self.clipboard_append(text)
 
     def _on_backup_toggle(self) -> None:
         s = _load_settings()
