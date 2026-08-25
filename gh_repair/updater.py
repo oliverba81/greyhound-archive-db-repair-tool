@@ -30,11 +30,21 @@ from . import __version__
 GITHUB_REPO = "oliverba81/greyhound-archive-db-repair-tool"
 GITHUB_API_BASE = f"https://api.github.com/repos/{GITHUB_REPO}"
 
-# Name des Release-Assets (ZIP mit dem gh_repair-Paket).
-ASSET_NAME = "gh_repair.zip"
+# Laeuft die App als gebaute .exe (PyInstaller) oder als Python-Quelltext?
+IS_FROZEN = getattr(sys, "frozen", False)
 
-# Wurzelverzeichnis der Installation (enthaelt den Ordner gh_repair/).
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Release-Assets: ZIP mit dem Paket (Quelltext-Variante) bzw. die fertige .exe.
+ZIP_ASSET_NAME = "gh_repair.zip"
+EXE_ASSET_NAME = "GHArchiveRepairTool.exe"
+ASSET_NAME = EXE_ASSET_NAME if IS_FROZEN else ZIP_ASSET_NAME
+
+# Wurzelverzeichnis der Installation.
+# - Quelltext: Ordner ueber dem Paket gh_repair/
+# - .exe:      Ordner, in dem die .exe liegt
+if IS_FROZEN:
+    PROJECT_ROOT = Path(sys.executable).resolve().parent
+else:
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_DIR = Path(__file__).resolve().parent
 
 
@@ -125,13 +135,55 @@ def fetch_releases(token: str = "", count: int = 10) -> list[dict]:
         return json.loads(resp.read())
 
 
-def apply_update(zip_bytes: bytes) -> None:
-    """Entpackt das ZIP ueber das Paket und startet das Tool neu.
+def apply_update(data: bytes) -> None:
+    """Spielt ein heruntergeladenes Update ein und startet das Tool neu.
 
-    Validiert das ZIP zunaechst (muss das gh_repair-Paket enthalten), schreibt
-    es in eine Temp-Datei und startet einen losgeloesten Helfer, der nach
-    kurzer Wartezeit entpackt, das Tool neu startet und sich selbst aufraeumt.
+    - Als .exe: tauscht die laufende .exe gegen die neue aus.
+    - Als Quelltext: entpackt das ZIP ueber das gh_repair-Paket.
     """
+    if IS_FROZEN:
+        _apply_update_exe(data)
+    else:
+        _apply_update_zip(data)
+
+
+def _apply_update_exe(exe_bytes: bytes) -> None:
+    """Ersetzt die laufende .exe durch die neue und startet sie neu.
+
+    Eine laufende .exe kann sich nicht selbst ueberschreiben. Deshalb schreibt
+    ein losgeloester Batch-Helfer die neue Datei erst, nachdem sich diese .exe
+    beendet hat (der Helfer wartet, bis die Datei entsperrt ist).
+    """
+    if exe_bytes[:2] != b"MZ":
+        raise ValueError("Ungueltiges Update-Asset – keine ausfuehrbare Datei.")
+
+    current = Path(sys.executable).resolve()
+    new_exe = current.with_name(current.stem + ".new.exe")
+    new_exe.write_bytes(exe_bytes)
+    helper = current.with_name("_update.bat")
+    # Wartet in einer Schleife, bis die alte .exe entsperrt ist, ersetzt sie,
+    # startet neu und loescht sich selbst.
+    helper.write_text(
+        "@echo off\r\n"
+        "setlocal\r\n"
+        f'set "CUR={current}"\r\n'
+        f'set "NEW={new_exe}"\r\n'
+        ":wait\r\n"
+        'del "%CUR%" >nul 2>&1\r\n'
+        'if exist "%CUR%" ( ping -n 2 127.0.0.1 >nul & goto wait )\r\n'
+        'move /y "%NEW%" "%CUR%" >nul\r\n'
+        'start "" "%CUR%"\r\n'
+        'del "%~f0"\r\n',
+        encoding="ascii",
+    )
+    flags = (getattr(subprocess, "DETACHED_PROCESS", 0)
+             | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    subprocess.Popen(["cmd", "/c", str(helper)], creationflags=flags,
+                     cwd=str(current.parent))
+
+
+def _apply_update_zip(zip_bytes: bytes) -> None:
+    """Entpackt das ZIP ueber das Paket und startet das Tool neu."""
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         names = zf.namelist()
     if not any(n.startswith("gh_repair/") and n.endswith(".py") for n in names):

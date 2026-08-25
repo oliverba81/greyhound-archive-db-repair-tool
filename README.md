@@ -20,7 +20,19 @@ Geht die `archive.db3` kaputt (meist der Index), legt man eine neue an –
 und hat danach zwei getrennte Archive. Dieses Tool führt sie wieder zusammen
 bzw. repariert ein defektes Archiv.
 
-## Start
+## Fertige .exe (ohne Python-Installation)
+
+Für Fremdsysteme ohne Python gibt es eine eigenständige Windows-`.exe`:
+
+- **Download:** unter [Releases](https://github.com/oliverba81/greyhound-archive-db-repair-tool/releases/latest)
+  die Datei **`GHArchiveRepairTool.exe`** herunterladen und einfach doppelklicken.
+  Kein Python, keine Installation nötig; Python + `customtkinter` sind gebündelt.
+- **Auto-Update:** Die `.exe` prüft beim Start auf neue Versionen und tauscht sich
+  bei Bestätigung selbst aus (lädt die neue `.exe` aus dem nächsten Release).
+- **Selbst bauen:** im Projektstamm `packaging\build_exe.bat` ausführen →
+  Ergebnis in `dist\GHArchiveRepairTool.exe` (PyInstaller, onefile, ohne Konsole).
+
+## Start aus dem Quelltext
 
 Voraussetzung: **Python 3.10+** (Windows: „py“-Launcher, in Python enthalten).
 
@@ -123,4 +135,6 @@ wie das Website-Scraper-Projekt), angepasst an die Paketstruktur:
 | `gh_repair/updater.py` | Auto-Update & Changelog über GitHub Releases |
 | `gh_repair/gui.py` | customtkinter-Oberfläche (Tabs: Reparieren, Zusammenführen, Changelog) |
 | `gh_repair/__main__.py` | Einstiegspunkt (GUI bzw. CLI) |
-| `.github/workflows/version-bump.yml` | Auto-Versionierung + Release-Build |
+| `app.py` | Einstiegspunkt für den .exe-Build (PyInstaller) |
+| `packaging/build_exe.bat` | Baut die eigenständige `.exe` lokal |
+| `.github/workflows/version-bump.yml` | Auto-Versionierung + Release (`gh_repair.zip` **und** `.exe`) |
