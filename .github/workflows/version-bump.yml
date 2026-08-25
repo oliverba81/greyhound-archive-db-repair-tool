@@ -12,6 +12,8 @@ jobs:
   bump:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true
+    outputs:
+      version: ${{ steps.new.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -74,3 +76,36 @@ jobs:
           generate_release_notes: true
           make_latest: true
           files: gh_repair.zip
+
+  # Eigenstaendige Windows-.exe bauen und an dasselbe Release anhaengen.
+  build-exe:
+    needs: bump
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "v${{ needs.bump.outputs.version }}"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build dependencies
+        run: py -m pip install --upgrade pyinstaller customtkinter darkdetect
+
+      - name: Build GHArchiveRepairTool.exe
+        run: >
+          py -m PyInstaller --noconfirm --clean --onefile --windowed
+          --name GHArchiveRepairTool
+          --collect-all customtkinter
+          --collect-all darkdetect
+          app.py
+
+      - name: Attach .exe to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ needs.bump.outputs.version }}"
+          files: dist/GHArchiveRepairTool.exe

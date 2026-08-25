@@ -11,6 +11,12 @@ _gh_repair_update.zip
 _gh_repair_updater.py
 gh_repair.zip
 
+# PyInstaller (.exe-Build)
+build/
+dist/
+*.spec
+_update.bat
+
 # Editor/OS
 .vscode/
 .idea/

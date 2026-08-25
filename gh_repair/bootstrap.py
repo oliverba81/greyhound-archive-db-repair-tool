@@ -53,7 +53,14 @@ def _mark_setup_done() -> None:
 
 
 def ensure_dependencies() -> None:
-    """Prueft und installiert fehlende Pakete beim ersten Start."""
+    """Prueft und installiert fehlende Pakete beim ersten Start.
+
+    In einer gebauten .exe (PyInstaller) sind alle Abhaengigkeiten bereits
+    gebuendelt – dort entfaellt jede Installation.
+    """
+    if getattr(sys, "frozen", False):
+        return
+
     settings = load_settings()
     if settings.get("setup_done") and settings.get("setup_version") == __version__:
         _refresh_sys_path()
