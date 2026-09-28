@@ -6,7 +6,7 @@ REM Ergebnis:  dist\GHArchiveRepairTool.exe
 cd /d "%~dp0.."
 
 echo Installiere Build-Abhaengigkeiten ...
-py -m pip install --quiet --upgrade pyinstaller customtkinter darkdetect
+py -m pip install --quiet --upgrade pyinstaller customtkinter darkdetect "cryptography>=41"
 
 echo Baue GHArchiveRepairTool.exe ...
 py -m PyInstaller --noconfirm --clean --onefile --windowed ^

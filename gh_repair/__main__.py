@@ -48,7 +48,7 @@ def _cli(argv: list[str]) -> int:
     return 0 if report.verify_ok else 1
 
 
-def _launch_gui() -> None:
+def _launch_gui(license_ended=None) -> None:
     # Beim ersten Start fehlende Abhaengigkeiten (customtkinter) installieren.
     from . import bootstrap
 
@@ -74,10 +74,10 @@ def _launch_gui() -> None:
         except Exception:  # noqa: BLE001
             print(msg)
         return
-    gui_main()
+    gui_main(license_ended)
 
 
-def main() -> int:
+def main(license_ended=None) -> int:
     if len(sys.argv) > 1:
         # Windows-Konsole (cp1252) vertraegt sonst keine Sonderzeichen
         try:
@@ -85,7 +85,7 @@ def main() -> int:
         except Exception:  # noqa: BLE001
             pass
         return _cli(sys.argv[1:])
-    _launch_gui()
+    _launch_gui(license_ended)
     return 0
 
 

@@ -94,7 +94,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install build dependencies
-        run: py -m pip install --upgrade pyinstaller customtkinter darkdetect
+        run: py -m pip install --upgrade pyinstaller customtkinter darkdetect "cryptography>=41"
 
       - name: Build GHArchiveRepairTool.exe
         run: >

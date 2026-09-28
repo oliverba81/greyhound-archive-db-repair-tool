@@ -29,7 +29,7 @@ COL_LOGFG = ("gray10", "#d4d4d4")
 
 
 class App(ctk.CTk):
-    def __init__(self) -> None:
+    def __init__(self, license_ended=None) -> None:
         super().__init__()
         self.title(f"GREYHOUND Archive Repair Tool   v{__version__}")
         self.update_idletasks()
@@ -65,6 +65,18 @@ class App(ctk.CTk):
         self.after(120, self._drain_log)
         self.after(3000, self._check_update)  # nicht-blockierend
         self.after(1500, self._load_changelog)
+        # Lizenz der gebauten .exe: Ende waehrend der Laufzeit im UI-Thread abfragen.
+        self._license_ended = license_ended
+        if license_ended is not None:
+            self.after(1000, self._watch_license)
+
+    def _watch_license(self) -> None:
+        text = self._license_ended()
+        if text is None:
+            self.after(1000, self._watch_license)
+            return
+        messagebox.showerror("Lizenz beendet", text)
+        self.destroy()
 
     # ------------------------------------------------------------------ Header
     def _build_header(self) -> None:
@@ -503,12 +515,12 @@ class App(ctk.CTk):
             messagebox.showwarning("Update-Prüfung fehlgeschlagen", str(payload))
 
 
-def main() -> None:
+def main(license_ended=None) -> None:
     ctk.set_appearance_mode(
         {"System": "system", "Hell": "light", "Dunkel": "dark"}.get(
             _load_settings().get("appearance", "Dunkel"), "dark"))
     ctk.set_default_color_theme("blue")
-    App().mainloop()
+    App(license_ended).mainloop()
 
 
 if __name__ == "__main__":
