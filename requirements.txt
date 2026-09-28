@@ -1,3 +1,5 @@
 # GUI-Theme (modernes Aussehen, wie im Website-Scraper-Projekt).
 # Installation:  py -m pip install -r requirements.txt
 customtkinter>=5.2.0
+# Lizenzpruefung der gebauten .exe (greyhound_license.py)
+cryptography>=41
