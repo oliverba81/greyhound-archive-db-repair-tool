@@ -12,7 +12,7 @@ import os
 import sys
 
 APP_ID = "gh-archiv-repair-tool"
-SUPPORT_CONTACT = "<Telefon/E-Mail/URL eintragen>"
+SUPPORT_CONTACT = "support@greyhound-software.com"
 
 LICENSE = None  # bis zum Programmende erreichbar halten
 _ended_text = None
